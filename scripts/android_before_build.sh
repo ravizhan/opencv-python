@@ -11,6 +11,8 @@ sed -i 's/if(ANDROID OR APPLE_FRAMEWORK OR WINRT)/if(APPLE_FRAMEWORK OR WINRT)  
 grep "removed ANDROID exclusion" modules/python/CMakeLists.txt || echo "WARNING: patch 1 failed"
 
 # 2. Enable python detection on Android
+sed -i 's/if(NOT ANDROID AND NOT APPLE_FRAMEWORK)/if(NOT APPLE_FRAMEWORK)  # Android: removed ANDROID exclusion/' \
+    cmake/OpenCVDetectPython.cmake
 sed -i 's/if(NOT ANDROID AND NOT IOS AND NOT XROS)/if(NOT IOS AND NOT XROS)  # Android: removed ANDROID exclusion/' \
     cmake/OpenCVDetectPython.cmake
 sed -i 's/endif(NOT ANDROID AND NOT IOS AND NOT XROS)/endif(NOT IOS AND NOT XROS)  # Android: removed ANDROID exclusion/' \
