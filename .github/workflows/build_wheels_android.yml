@@ -1,0 +1,70 @@
+name: Android Wheels
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android-wheels
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64_v8a, x86_64]
+        python-version: ['3.13']
+
+    env:
+      CIBW_PLATFORM: android
+      CIBW_ARCHS: ${{ matrix.arch }}
+      CIBW_BUILD: "cp${{ matrix.python-version == '3.13' && '313' || '314' }}-android_*"
+      CIBW_BUILD_FRONTEND: build
+      CIBW_BEFORE_BUILD: sh scripts/android_before_build.sh
+      CIBW_ENVIRONMENT: >
+        ANDROID=1
+        ENABLE_HEADLESS=1
+        CI_BUILD=1
+        PIP_EXTRA_INDEX_URL=https://chaquo.com/pypi-13.1
+      CIBW_TEST_COMMAND: python -c "import cv2; print('cv2 version:', cv2.__version__)"
+      CIBW_TEST_REQUIRES: numpy
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install Android SDK cmdline-tools
+      run: |
+        sudo mkdir -p $ANDROID_HOME/cmdline-tools
+        curl -sL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdtools.zip
+        sudo unzip -q /tmp/cmdtools.zip -d $ANDROID_HOME/cmdline-tools
+        sudo mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+        yes | sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-35" "ndk;27.0.12077973" "cmake;3.22.1" "build-tools;35.0.0"
+
+    - name: KVM setup for Android emulator
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Build Android wheels
+      run: |
+        pip install cibuildwheel
+        cibuildwheel --output-dir wheelhouse
+
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-wheel-${{ matrix.python-version }}-${{ matrix.arch }}
+        path: wheelhouse/*.whl

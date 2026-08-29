@@ -21,6 +21,7 @@ def main():
     build_headless = get_build_env_var_by_name("headless")
     build_java = "ON" if get_build_env_var_by_name("java") else "OFF"
     build_rolling = get_build_env_var_by_name("rolling")
+    build_android = bool(os.environ.get("ANDROID", ""))
 
     install_requires = [
         'numpy<2.0; python_version<"3.9"',
@@ -220,6 +221,37 @@ def main():
         # libavdevice is enabled by default, but brings libxcb dependency
         if sys.platform.startswith("linux"):
             cmake_args.append("-DOPENCV_FFMPEG_ENABLE_LIBAVDEVICE=OFF")
+
+    if build_android:
+        # Android: link against libpython (PEP 738)
+        cmake_args.append("-DOPENCV_FORCE_PYTHON_LIBS=ON")
+        cmake_args.append("-DBUILD_ANDROID_PROJECTS=OFF")
+        cmake_args.append("-DBUILD_ANDROID_EXAMPLES=OFF")
+        cmake_args.append("-DWITH_OPENCL=OFF")
+        # In cibuildwheel's Android cross-env, sysconfig reports target paths
+        target_libdir = sysconfig.get_config_var("LIBDIR") or ""
+        target_ldlibrary = sysconfig.get_config_var("LDLIBRARY") or ""
+        target_include = sysconfig.get_config_var("INCLUDEPY") or ""
+        if target_libdir and target_ldlibrary:
+            lib_path = os.path.join(target_libdir, target_ldlibrary)
+            if os.path.exists(lib_path):
+                cmake_args.append("-DPYTHON3_LIBRARY=%s" % lib_path)
+        if target_include and os.path.exists(os.path.join(target_include, "Python.h")):
+            cmake_args.append("-DPYTHON3_INCLUDE_DIR=%s" % target_include)
+        # NumPy include dir: from the Android numpy installed via PIP_EXTRA_INDEX_URL
+        numpy_include = os.environ.get("PYTHON3_NUMPY_INCLUDE_DIRS", "")
+        if not numpy_include:
+            try:
+                import numpy
+                numpy_include = numpy.get_include()
+            except ImportError:
+                pass
+        if numpy_include:
+            cmake_args.append("-DPYTHON3_NUMPY_INCLUDE_DIRS=%s" % numpy_include)
+        # Fix data path: Android layout uses sdk/etc instead of share/opencv4
+        rearrange_cmake_output_data["cv2.data"] = [
+            "sdk/etc" + r"/haarcascades/.*\.xml"
+        ]
 
     if sys.platform.startswith("linux") and not is64 and "bdist_wheel" in sys.argv:
         subprocess.check_call("patch -p0 < patches/patchOpenEXR", shell=True)
