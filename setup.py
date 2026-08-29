@@ -223,6 +223,10 @@ def main():
             cmake_args.append("-DOPENCV_FFMPEG_ENABLE_LIBAVDEVICE=OFF")
 
     if build_android:
+        # Pass CMAKE_TOOLCHAIN_FILE so CMake cross-compiles for Android
+        toolchain_file = os.environ.get("CMAKE_TOOLCHAIN_FILE", "")
+        if toolchain_file:
+            cmake_args.append("-DCMAKE_TOOLCHAIN_FILE=%s" % toolchain_file)
         # Android: link against libpython (PEP 738)
         cmake_args.append("-DOPENCV_FORCE_PYTHON_LIBS=ON")
         cmake_args.append("-DBUILD_ANDROID_PROJECTS=OFF")
