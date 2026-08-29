@@ -25,6 +25,8 @@ jobs:
         ANDROID=1
         ENABLE_HEADLESS=1
         CI_BUILD=1
+        CMAKE_BUILD_PARALLEL_LEVEL=4
+        SKBUILD_BUILD_OPTIONS=-j4
         PIP_EXTRA_INDEX_URL=https://chaquo.com/pypi-13.1
       CIBW_TEST_COMMAND: python -c "import cv2; print('cv2 version:', cv2.__version__)"
       CIBW_TEST_REQUIRES: numpy
